@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <!-- Correct base path for GitHub Pages -->
+  <base href="/morph.github.io/">
+
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="description" content="Morph - A Flutter Web App.">
+
+  <!-- iOS meta tags & icons -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="morph">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="favicon.png"/>
+
+  <title>Morph</title>
+  <link rel="manifest" href="manifest.json">
+
+  <!-- CSS for the Loading Screen -->
+  <style>
+    #loading-screen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background-color: #1a1a1a;
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      font-family: Arial, sans-serif;
+      transition: opacity 0.75s ease-out;
+    }
+
+    #loading-screen.fade-out {
+      opacity: 0;
+    }
+    
+    .loading-title {
+      color: #f0f0f0;
+      font-size: 24px;
+      margin-bottom: 20px;
+    }
+    
+    .progress-bar-container {
+      width: 300px;
+      height: 12px;
+      background-color: #444;
+      border-radius: 8px;
+      overflow: hidden;
+      margin-top: 20px;
+    }
+    
+    .progress-bar-fill {
+      width: 0%;
+      height: 100%;
+      background-color: #42A5F5;
+      border-radius: 8px;
+      transition: width 0.3s ease-in-out;
+    }
+
+    #loading-progress-text {
+      margin-top: 15px;
+      font-size: 16px;
+      color: #f0f0f0;
+    }
+  </style>
+
+</head>
+<body>
+
+  <div id="loading-screen">
+    <h1 class="loading-title">Morph</h1>
+    <div class="progress-bar-container">
+      <div class="progress-bar-fill" id="progress-bar-fill"></div>
+    </div>
+    <p id="loading-progress-text">Loading... 0%</p>
+  </div>
+
+  <script>
+    var serviceWorkerVersion = null;
+    var scriptLoaded = false;
+    function loadMainDartJs() {
+      if (scriptLoaded) return;
+      scriptLoaded = true;
+      var scriptTag = document.createElement('script');
+      scriptTag.src = 'main.dart.js';
+      scriptTag.type = 'application/javascript';
+      document.body.append(scriptTag);
+    }
+
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('flutter_service_worker.js?v=' + serviceWorkerVersion)
+          .then((reg) => {
+            function waitForActivation(serviceWorker) {
+              serviceWorker.addEventListener('statechange', () => {
+                if (serviceWorker.state == 'activated') {
+                  loadMainDartJs();
+                }
+              });
+            }
+            if (!reg.active && (reg.installing || reg.waiting)) {
+              waitForActivation(reg.installing || reg.waiting);
+            } else if (!reg.active.scriptURL.endsWith(serviceWorkerVersion)) {
+              reg.update();
+              waitForActivation(reg.installing);
+            } else {
+              loadMainDartJs();
+            }
+          });
+      });
+    } else {
+      loadMainDartJs();
+    }
+  </script>
+  
+  <script src="flutter_bootstrap.js" async></script>
+  
+  <script>
+    const loadingScreen = document.getElementById('loading-screen');
+    const progressBarFill = document.getElementById('progress-bar-fill');
+    const progressText = document.getElementById('loading-progress-text');
+    let progress = 0;
+    let progressInterval;
+
+    function simulateProgress() {
+      progressInterval = setInterval(() => {
+        if (progress < 95) {
+          progress += 1;
+          updateProgress(progress);
+        }
+      }, 40);
+    }
+
+    function updateProgress(value) {
+      progressBarFill.style.width = value + '%';
+      progressText.textContent = 'Loading... ' + value + '%';
+    }
+
+    simulateProgress();
+
+    window.addEventListener('load', function(ev) {
+      _flutter.loader.loadEntrypoint({
+        serviceWorker: { serviceWorkerVersion: serviceWorkerVersion },
+      }).then(function(engineInitializer) {
+        return engineInitializer.initializeEngine();
+      }).then(function(appRunner) {
+        clearInterval(progressInterval);
+        updateProgress(100);
+        setTimeout(() => {
+          loadingScreen.classList.add('fade-out');
+          loadingScreen.addEventListener('transitionend', () => {
+            loadingScreen.remove();
+          });
+        }, 300);
+        return appRunner.runApp();
+      });
+    });
+  </script>
+</body>
+</html>
