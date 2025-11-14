@@ -60,6 +60,28 @@
     }
   </style>
 
+  <!-- ✅ SCRIPT FOR SPA 404-REDIRECT HANDLING -->
+  <script type="text/javascript">
+    (function() {
+      // Check if there's a redirect path stored in sessionStorage.
+      var redirect = sessionStorage.redirect;
+      if (redirect) {
+        // Clear the stored path so it doesn't trigger on subsequent reloads.
+        delete sessionStorage.redirect;
+        
+        // Get the current URL path.
+        var currentPath = window.location.pathname;
+        
+        // Use history.replaceState to change the URL in the address bar
+        // without reloading the page. This makes the URL reflect the
+        // intended deep link.
+        if (currentPath !== redirect) {
+          window.history.replaceState(null, null, redirect);
+        }
+      }
+    })();
+  </script>
+
 </head>
 <body>
 
