@@ -20,6 +20,21 @@
   <title>Morph</title>
   <link rel="manifest" href="manifest.json">
 
+  <!-- ====================================================== -->
+  <!-- ✅ PRELOAD CRITICAL ASSETS FOR FASTER INITIAL LOADING -->
+  <!-- ====================================================== -->
+
+  <!-- Preload the main application script. 'as="script"' tells the browser to prioritize it as a script. -->
+  <link rel="preload" href="main.dart.js" as="script">
+
+  <!-- Preload the Flutter bootstrap script. -->
+  <link rel="preload" href="flutter_bootstrap.js" as="script">
+
+  <!-- Optional: Preload the manifest and key icons if PWA experience is critical on first load. -->
+  <link rel="preload" href="manifest.json" as="fetch" crossorigin="use-credentials">
+  <link rel="preload" href="icons/Icon-192.png" as="image">
+  
+  
   <!-- CSS for the Loading Screen -->
   <style>
     body {
