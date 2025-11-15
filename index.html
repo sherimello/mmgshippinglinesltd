@@ -21,24 +21,31 @@
   <link rel="manifest" href="manifest.json">
 
   <!-- ====================================================== -->
-  <!-- ✅ PRELOAD CRITICAL ASSETS FOR FASTER INITIAL LOADING -->
+  <!-- ✅ PRELOAD ALL CRITICAL ASSETS FOR FASTER STARTUP     -->
   <!-- ====================================================== -->
 
-  <!-- Preload the main application script. 'as="script"' tells the browser to prioritize it as a script. -->
+  <!-- Preload your core application logic -->
   <link rel="preload" href="main.dart.js" as="script">
-
-  <!-- Preload the Flutter bootstrap script. -->
   <link rel="preload" href="flutter_bootstrap.js" as="script">
 
-  <!-- Optional: Preload the manifest and key icons if PWA experience is critical on first load. -->
-  <link rel="preload" href="manifest.json" as="fetch" crossorigin="use-credentials">
-  <link rel="preload" href="icons/Icon-192.png" as="image">
+  <!-- Preload the CanvasKit WASM file if you're using the CanvasKit renderer (default for desktop) -->
+  <!-- This makes a HUGE difference. Path might vary slightly with Flutter versions. -->
+  <link rel="preload" href="canvaskit/canvaskit.wasm" as="fetch" crossOrigin="anonymous">
+
+  <!-- Preload font configuration and default Material icons font -->
+  <link rel="preload" href="assets/FontManifest.json" as="fetch" crossOrigin="anonymous">
+  <link rel="preload" href="assets/fonts/MaterialIcons-Regular.otf" as="font" type="font/otf" crossOrigin="anonymous">
   
-  
-  <!-- CSS for the Loading Screen -->
+  <!-- Add your other critical fonts or images here -->
+  <!-- <link rel="preload" href="assets/fonts/MyCustomFont.ttf" as="font" type="font/ttf" crossOrigin="anonymous"> -->
+  <!-- <link rel="preload" href="assets/my_logo.png" as="image"> -->
+
+
+  <!-- CSS for the Loading Screen with a dynamic progress bar -->
   <style>
     body {
-      background-color: #1a1a1a; /* Ensure body has background color */
+      background-color: #1a1a1a;
+      overflow: hidden; /* Prevent scrolling during load */
     }
     
     #loading-screen {
@@ -51,6 +58,7 @@
       display: flex;
       justify-content: center;
       align-items: center;
+      background-color: #1a1a1a;
       transition: opacity 0.75s ease-out;
     }
 
@@ -58,38 +66,39 @@
       opacity: 0;
     }
 
-    /* Styles for the new thick circular progress bar */
-    .circular-loader {
+    /* Redesigned loader to show actual progress with a conic gradient */
+    .progress-indicator {
       width: 120px;
       height: 120px;
       border-radius: 50%;
-      border: 16px solid #444; /* Thickness and track color */
-      border-top: 16px solid #42A5F5; /* Spinner color */
-      animation: spin 1.5s linear infinite; /* Animation */
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      position: relative;
+      /* Register a CSS variable '--progress' that we will update with JS */
+      background: radial-gradient(closest-side, #1a1a1a 79%, transparent 80% 100%),
+                  conic-gradient(#42A5F5 calc(var(--progress, 0) * 1%), #444 0);
+      transition: background 0.2s; /* Smooth out progress updates slightly */
     }
 
-    /* Animation keyframes for the rotation */
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
+    /* Text display for the percentage */
+    .progress-indicator::after {
+      content: attr(data-progress) "%"; /* Display the progress value */
+      position: absolute;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 24px;
+      font-weight: bold;
+      color: #FFF;
     }
   </style>
 
-  <!-- ✅ SCRIPT FOR SPA 404-REDIRECT HANDLING -->
+  <!-- SPA 404-REDIRECT HANDLING -->
   <script type="text/javascript">
     (function() {
-      // Check if there's a redirect path stored in sessionStorage.
       var redirect = sessionStorage.redirect;
       if (redirect) {
-        // Clear the stored path so it doesn't trigger on subsequent reloads.
         delete sessionStorage.redirect;
-        
-        // Get the current URL path.
         var currentPath = window.location.pathname;
-        
-        // Use history.replaceState to change the URL in the address bar
-        // without reloading the page. This makes the URL reflect the
-        // intended deep link.
         if (currentPath !== redirect) {
           window.history.replaceState(null, null, redirect);
         }
@@ -100,21 +109,78 @@
 </head>
 <body>
 
-  <!-- Simplified Loading Screen with only the circular loader -->
+  <!-- Loading Screen HTML, with a new class and a data attribute for the text -->
   <div id="loading-screen">
-    <div class="circular-loader"></div>
+    <div class="progress-indicator" data-progress="0"></div>
   </div>
 
   <script>
     var serviceWorkerVersion = null;
     var scriptLoaded = false;
+    
+    // Select the progress indicator elements
+    const progressIndicator = document.querySelector('.progress-indicator');
+    const loadingScreen = document.getElementById('loading-screen');
+
+    // ✅ MODIFIED SCRIPT LOADER WITH PROGRESS TRACKING
     function loadMainDartJs() {
       if (scriptLoaded) return;
       scriptLoaded = true;
-      var scriptTag = document.createElement('script');
-      scriptTag.src = 'main.dart.js';
-      scriptTag.type = 'application/javascript';
-      document.body.append(scriptTag);
+
+      // Use fetch to download the script and monitor progress
+      fetch('main.dart.js')
+        .then(response => {
+          if (!response.ok) {
+            throw new Error('Network response was not ok');
+          }
+
+          const contentLength = response.headers.get('content-length');
+          if (!contentLength) {
+            // Cannot compute progress, so we'll just show an indeterminate state (e.g., spinning)
+            // For simplicity here, we'll proceed without progress. A real app might switch loaders.
+            console.warn('Content-Length header not available, cannot show download progress.');
+            return response.blob(); // Handle as a whole
+          }
+
+          const total = parseInt(contentLength, 10);
+          let loaded = 0;
+          
+          const reader = response.body.getReader();
+          let chunks = [];
+
+          // Stream the download
+          return new Promise((resolve, reject) => {
+            function read() {
+              reader.read().then(({ done, value }) => {
+                if (done) {
+                  resolve(new Blob(chunks));
+                  return;
+                }
+                chunks.push(value);
+                loaded += value.length;
+                const progress = Math.round((loaded / total) * 100);
+
+                // Update the CSS variable and the text attribute
+                progressIndicator.style.setProperty('--progress', progress);
+                progressIndicator.setAttribute('data-progress', progress);
+                
+                read();
+              }).catch(reject);
+            }
+            read();
+          });
+        })
+        .then(blob => {
+          // Once downloaded, create an object URL and load it as a script
+          const script = document.createElement('script');
+          script.src = URL.createObjectURL(blob);
+          script.type = 'application/javascript';
+          document.body.appendChild(script);
+        })
+        .catch(error => {
+          console.error('Failed to load main.dart.js:', error);
+          // Optionally, display an error message to the user here
+        });
     }
 
     if ('serviceWorker' in navigator) {
@@ -146,16 +212,14 @@
   <script src="flutter_bootstrap.js" async></script>
   
   <script>
-    const loadingScreen = document.getElementById('loading-screen');
-
-    // Wait for the flutter engine to load
+    // Wait for the flutter engine to initialize after main.dart.js is loaded and executed
     window.addEventListener('load', function(ev) {
       _flutter.loader.loadEntrypoint({
         serviceWorker: { serviceWorkerVersion: serviceWorkerVersion },
       }).then(function(engineInitializer) {
         return engineInitializer.initializeEngine();
       }).then(function(appRunner) {
-        // When the app is ready, fade out the loading screen
+        // When the Flutter app is ready to run, fade out the loading screen
         setTimeout(() => {
           loadingScreen.classList.add('fade-out');
           loadingScreen.addEventListener('transitionend', () => {
@@ -163,7 +227,7 @@
           });
         }, 300); // Small delay to ensure a smooth transition
         
-        // Run the app
+        // Run the Flutter app
         return appRunner.runApp();
       });
     });
